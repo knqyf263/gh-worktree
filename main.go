@@ -6,11 +6,13 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 
 	"github.com/cli/go-gh/v2/pkg/api"
 	"github.com/cli/go-gh/v2/pkg/prompter"
 	"github.com/cli/go-gh/v2/pkg/repository"
+	"github.com/knqyf263/gh-worktree/internal/validate"
 	"github.com/spf13/cobra"
 )
 
@@ -274,6 +276,13 @@ func checkoutRun(opts *CheckoutOptions, selector string) error {
 	}
 	
 	repoName := filepath.Base(gitRoot)
+	if err := validate.RepoName(repoName); err != nil {
+		return fmt.Errorf("invalid repository name: %w", err)
+	}
+	if err := validate.PRNumber(prNumber); err != nil {
+		return fmt.Errorf("invalid PR number: %w", err)
+	}
+	
 	worktreePath := filepath.Join(filepath.Dir(gitRoot), fmt.Sprintf("%s-pr%d", repoName, prNumber))
 
 	// Check if worktree already exists
@@ -308,6 +317,13 @@ func removeRun(selector string) error {
 	}
 	
 	repoName := filepath.Base(gitRoot)
+	if err := validate.RepoName(repoName); err != nil {
+		return fmt.Errorf("invalid repository name: %w", err)
+	}
+	if err := validate.PRNumber(prNumber); err != nil {
+		return fmt.Errorf("invalid PR number: %w", err)
+	}
+	
 	worktreePath := filepath.Join(filepath.Dir(gitRoot), fmt.Sprintf("%s-pr%d", repoName, prNumber))
 
 	// Check if worktree exists
@@ -335,10 +351,14 @@ func removeRun(selector string) error {
 
 	// Delete the branch (this also removes branch-specific metadata)
 	if branchName != "" {
-		cmd = exec.Command("git", "branch", "-D", branchName)
-		if err := cmd.Run(); err != nil {
-			// Ignore error as branch might not exist or be checked out elsewhere
-			fmt.Fprintf(os.Stderr, "Warning: failed to delete branch %s: %v\n", branchName, err)
+		if err := validate.BranchName(branchName); err != nil {
+			fmt.Fprintf(os.Stderr, "Warning: invalid branch name %s: %v\n", branchName, err)
+		} else {
+			cmd = exec.Command("git", "branch", "-D", branchName)
+			if err := cmd.Run(); err != nil {
+				// Ignore error as branch might not exist or be checked out elsewhere
+				fmt.Fprintf(os.Stderr, "Warning: failed to delete branch %s: %v\n", branchName, err)
+			}
 		}
 	}
 
@@ -352,23 +372,38 @@ func removeRun(selector string) error {
 func parsePRNumber(selector string) (int, error) {
 	// Handle URL format: https://github.com/OWNER/REPO/pull/NUMBER
 	if strings.Contains(selector, "/pull/") {
-		parts := strings.Split(selector, "/pull/")
-		if len(parts) == 2 {
-			var prNumber int
-			_, err := fmt.Sscanf(parts[1], "%d", &prNumber)
-			if err != nil {
-				return 0, fmt.Errorf("invalid PR URL format")
-			}
-			return prNumber, nil
+		// Validate URL first
+		if err := validate.URL(selector); err != nil {
+			return 0, fmt.Errorf("invalid URL: %w", err)
 		}
+		
+		parts := strings.Split(selector, "/pull/")
+		if len(parts) != 2 {
+			return 0, fmt.Errorf("invalid PR URL format")
+		}
+		
+		prNumber, err := strconv.Atoi(strings.TrimSpace(parts[1]))
+		if err != nil {
+			return 0, fmt.Errorf("invalid PR number in URL: %w", err)
+		}
+		
+		if err := validate.PRNumber(prNumber); err != nil {
+			return 0, err
+		}
+		
+		return prNumber, nil
 	}
 
 	// Handle direct number
-	var prNumber int
-	_, err := fmt.Sscanf(selector, "%d", &prNumber)
+	prNumber, err := strconv.Atoi(strings.TrimSpace(selector))
 	if err != nil {
-		return 0, fmt.Errorf("invalid PR number format")
+		return 0, fmt.Errorf("invalid PR number format: %w", err)
 	}
+	
+	if err := validate.PRNumber(prNumber); err != nil {
+		return 0, err
+	}
+	
 	return prNumber, nil
 }
 
@@ -406,9 +441,17 @@ func createWorktree(worktreePath string, pr *PullRequest, opts *CheckoutOptions)
 	var cmdQueue [][]string
 
 	if headRemote != nil {
-		cmdQueue = append(cmdQueue, cmdsForExistingRemote(headRemote, pr, opts, worktreePath, branchName)...)
+		cmds, err := cmdsForExistingRemote(headRemote, pr, opts, worktreePath, branchName)
+		if err != nil {
+			return fmt.Errorf("failed to create commands for existing remote: %w", err)
+		}
+		cmdQueue = append(cmdQueue, cmds...)
 	} else {
-		cmdQueue = append(cmdQueue, cmdsForMissingRemote(pr, baseRemote, repo, opts, worktreePath, branchName)...)
+		cmds, err := cmdsForMissingRemote(pr, baseRemote, repo, opts, worktreePath, branchName)
+		if err != nil {
+			return fmt.Errorf("failed to create commands for missing remote: %w", err)
+		}
+		cmdQueue = append(cmdQueue, cmds...)
 	}
 
 	if opts.RecurseSubmodules {
@@ -431,11 +474,22 @@ func createWorktree(worktreePath string, pr *PullRequest, opts *CheckoutOptions)
 }
 
 func storePRMetadata(worktreePath string, pr *PullRequest) error {
-	// Store PR metadata in branch-specific git config
+	// Validate and sanitize inputs
+	if err := validate.BranchName(pr.Head.Ref); err != nil {
+		return fmt.Errorf("invalid branch name: %w", err)
+	}
+	
 	branchName := pr.Head.Ref
+	sanitizedTitle := validate.SanitizeForGitConfig(pr.Title)
+	
+	// Validate PR number
+	if err := validate.PRNumber(pr.Number); err != nil {
+		return fmt.Errorf("invalid PR number: %w", err)
+	}
+	
 	configs := [][]string{
-		{"-C", worktreePath, "config", fmt.Sprintf("branch.%s.gh-worktree-pr-number", branchName), fmt.Sprintf("%d", pr.Number)},
-		{"-C", worktreePath, "config", fmt.Sprintf("branch.%s.gh-worktree-pr-title", branchName), pr.Title},
+		{"-C", worktreePath, "config", fmt.Sprintf("branch.%s.gh-worktree-pr-number", branchName), strconv.Itoa(pr.Number)},
+		{"-C", worktreePath, "config", fmt.Sprintf("branch.%s.gh-worktree-pr-title", branchName), sanitizedTitle},
 	}
 
 	for _, configCmd := range configs {
@@ -511,7 +565,15 @@ func findHeadRemote(remotes []*Remote, pr *PullRequest) *Remote {
 	return nil
 }
 
-func cmdsForExistingRemote(remote *Remote, pr *PullRequest, opts *CheckoutOptions, worktreePath, branchName string) [][]string {
+func cmdsForExistingRemote(remote *Remote, pr *PullRequest, opts *CheckoutOptions, worktreePath, branchName string) ([][]string, error) {
+	// Validate inputs
+	if err := validate.BranchName(pr.Head.Ref); err != nil {
+		return nil, fmt.Errorf("invalid head ref: %w", err)
+	}
+	if err := validate.BranchName(branchName); err != nil {
+		return nil, fmt.Errorf("invalid branch name: %w", err)
+	}
+	
 	var cmds [][]string
 	remoteBranch := fmt.Sprintf("%s/%s", remote.Name, pr.Head.Ref)
 
@@ -541,17 +603,28 @@ func cmdsForExistingRemote(remote *Remote, pr *PullRequest, opts *CheckoutOption
 		}
 	}
 
-	return cmds
+	return cmds, nil
 }
 
-func cmdsForMissingRemote(pr *PullRequest, baseRemote *Remote, repo repository.Repository, opts *CheckoutOptions, worktreePath, branchName string) [][]string {
+func cmdsForMissingRemote(pr *PullRequest, baseRemote *Remote, repo repository.Repository, opts *CheckoutOptions, worktreePath, branchName string) ([][]string, error) {
+	// Validate inputs
+	if err := validate.PRNumber(pr.Number); err != nil {
+		return nil, fmt.Errorf("invalid PR number: %w", err)
+	}
+	if err := validate.BranchName(branchName); err != nil {
+		return nil, fmt.Errorf("invalid branch name: %w", err)
+	}
+	if err := validate.BranchName(pr.Head.Ref); err != nil {
+		return nil, fmt.Errorf("invalid head ref: %w", err)
+	}
+	
 	var cmds [][]string
 	ref := fmt.Sprintf("refs/pull/%d/head", pr.Number)
 
 	if opts.Detach {
 		cmds = append(cmds, []string{"fetch", baseRemote.Name, ref, "--no-tags"})
 		cmds = append(cmds, []string{"worktree", "add", "--detach", worktreePath, "FETCH_HEAD"})
-		return cmds
+		return cmds, nil
 	}
 
 	fetchCmd := []string{"fetch", baseRemote.Name, fmt.Sprintf("%s:%s", ref, branchName), "--no-tags"}
@@ -566,8 +639,19 @@ func cmdsForMissingRemote(pr *PullRequest, baseRemote *Remote, repo repository.R
 	remoteName := baseRemote.Name
 	mergeRef := ref
 	if pr.MaintainerCanModify && pr.Head.Repo.Name != "" {
+		// Validate GitHub URL components before constructing URL
+		if err := validate.RepoName(pr.Head.Repo.Name); err != nil {
+			return nil, fmt.Errorf("invalid head repo name: %w", err)
+		}
+		if err := validate.RepoName(pr.Head.Repo.Owner.Login); err != nil {
+			return nil, fmt.Errorf("invalid head repo owner: %w", err)
+		}
+		
 		// If maintainer can modify, set up for push to head repository
 		pushRemote := fmt.Sprintf("https://github.com/%s/%s", pr.Head.Repo.Owner.Login, pr.Head.Repo.Name)
+		if err := validate.URL(pushRemote); err != nil {
+			return nil, fmt.Errorf("invalid push remote URL: %w", err)
+		}
 		mergeRef = fmt.Sprintf("refs/heads/%s", pr.Head.Ref)
 		cmds = append(cmds, []string{"-C", worktreePath, "config", fmt.Sprintf("branch.%s.pushRemote", branchName), pushRemote})
 	}
@@ -575,7 +659,7 @@ func cmdsForMissingRemote(pr *PullRequest, baseRemote *Remote, repo repository.R
 	cmds = append(cmds, []string{"-C", worktreePath, "config", fmt.Sprintf("branch.%s.remote", branchName), remoteName})
 	cmds = append(cmds, []string{"-C", worktreePath, "config", fmt.Sprintf("branch.%s.merge", branchName), mergeRef})
 
-	return cmds
+	return cmds, nil
 }
 
 func localBranchExists(branchName string) bool {
@@ -901,10 +985,14 @@ func removeRunInteractive() error {
 
 	// Delete the branch (this also removes branch-specific metadata)
 	if selectedWorktree.Branch != "" {
-		cmd = exec.Command("git", "branch", "-D", selectedWorktree.Branch)
-		if err := cmd.Run(); err != nil {
-			// Ignore error as branch might not exist or be checked out elsewhere
-			fmt.Fprintf(os.Stderr, "Warning: failed to delete branch %s: %v\n", selectedWorktree.Branch, err)
+		if err := validate.BranchName(selectedWorktree.Branch); err != nil {
+			fmt.Fprintf(os.Stderr, "Warning: invalid branch name %s: %v\n", selectedWorktree.Branch, err)
+		} else {
+			cmd = exec.Command("git", "branch", "-D", selectedWorktree.Branch)
+			if err := cmd.Run(); err != nil {
+				// Ignore error as branch might not exist or be checked out elsewhere
+				fmt.Fprintf(os.Stderr, "Warning: failed to delete branch %s: %v\n", selectedWorktree.Branch, err)
+			}
 		}
 	}
 
