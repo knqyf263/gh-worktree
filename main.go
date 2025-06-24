@@ -223,6 +223,11 @@ func checkoutRunInteractive(opts *CheckoutOptions) error {
 	repoName := filepath.Base(gitRoot)
 	worktreePath := filepath.Join(filepath.Dir(gitRoot), fmt.Sprintf("%s-pr%d", repoName, selectedPR.Number))
 
+	// Check if worktree already exists
+	if _, err := os.Stat(worktreePath); err == nil {
+		return fmt.Errorf("worktree for PR #%d already exists at %s", selectedPR.Number, worktreePath)
+	}
+
 	// Create worktree
 	err = createWorktree(worktreePath, &selectedPR, opts)
 	if err != nil {
@@ -270,6 +275,11 @@ func checkoutRun(opts *CheckoutOptions, selector string) error {
 	
 	repoName := filepath.Base(gitRoot)
 	worktreePath := filepath.Join(filepath.Dir(gitRoot), fmt.Sprintf("%s-pr%d", repoName, prNumber))
+
+	// Check if worktree already exists
+	if _, err := os.Stat(worktreePath); err == nil {
+		return fmt.Errorf("worktree for PR #%d already exists at %s", prNumber, worktreePath)
+	}
 
 	// Create worktree
 	err = createWorktree(worktreePath, &pr, opts)
