@@ -574,16 +574,38 @@ func localBranchExists(branchName string) bool {
 }
 
 func getGitRoot() (string, error) {
-	cmd := exec.Command("git", "rev-parse", "--show-toplevel")
+	// Get the main repository root by finding the git common directory
+	cmd := exec.Command("git", "rev-parse", "--git-common-dir")
 	output, err := cmd.Output()
 	if err != nil {
-		return "", fmt.Errorf("failed to get git root: %w", err)
+		return "", fmt.Errorf("failed to get git common dir: %w", err)
 	}
-	return strings.TrimSpace(string(output)), nil
+	
+	gitCommonDir := strings.TrimSpace(string(output))
+	
+	// If it's an absolute path, get its parent
+	if filepath.IsAbs(gitCommonDir) {
+		return filepath.Dir(gitCommonDir), nil
+	}
+	
+	// If it's a relative path, resolve it from current directory
+	currentDir, err := os.Getwd()
+	if err != nil {
+		return "", fmt.Errorf("failed to get current directory: %w", err)
+	}
+	
+	absGitDir := filepath.Join(currentDir, gitCommonDir)
+	return filepath.Dir(absGitDir), nil
 }
 
 func getWorktrees() ([]*WorktreeInfo, error) {
-	cmd := exec.Command("git", "worktree", "list", "--porcelain")
+	// Run git worktree list from the main repository to get all worktrees
+	gitRoot, err := getGitRoot()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get git root: %w", err)
+	}
+	
+	cmd := exec.Command("git", "-C", gitRoot, "worktree", "list", "--porcelain")
 	output, err := cmd.Output()
 	if err != nil {
 		return nil, fmt.Errorf("failed to get worktree list: %w", err)
