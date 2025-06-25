@@ -353,7 +353,7 @@ func TestURL(t *testing.T) {
 			name:    "invalid URL format",
 			input:   "not a url at all",
 			wantErr: true,
-			errMsg:  "invalid URL format",
+			errMsg:  "only HTTPS URLs are allowed",
 		},
 		{
 			name:    "URL with credentials",
