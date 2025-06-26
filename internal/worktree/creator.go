@@ -95,13 +95,23 @@ func (c *Creator) Create(worktreePath string, pr *github.PullRequest, opts *Chec
 
 func (c *Creator) findBaseRemote() *git.Remote {
 	repoName := c.repo.Name
+	repoOwner := c.repo.Owner
 	
+	// First, try to find the exact match with owner/name
+	for _, remote := range c.remotes {
+		if strings.Contains(remote.URL, repoOwner) && strings.Contains(remote.URL, repoName) {
+			return remote
+		}
+	}
+	
+	// If no exact match, prefer origin if it contains the repo name
 	for _, remote := range c.remotes {
 		if remote.Name == "origin" && strings.Contains(remote.URL, repoName) {
 			return remote
 		}
 	}
 	
+	// Otherwise, any remote with the repo name
 	for _, remote := range c.remotes {
 		if strings.Contains(remote.URL, repoName) {
 			return remote
