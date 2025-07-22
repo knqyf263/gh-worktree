@@ -160,7 +160,7 @@ func TestRemove(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := Remove(tt.worktreePath)
+			err := Remove(tt.worktreePath, false)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("Remove(%s) error = %v, wantErr %v", tt.worktreePath, err, tt.wantErr)
 			}
