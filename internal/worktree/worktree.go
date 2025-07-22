@@ -128,8 +128,14 @@ func GetPRTitle(worktreePath, branchName string) string {
 }
 
 // Remove removes a worktree
-func Remove(worktreePath string) error {
-	cmd := exec.Command("git", "worktree", "remove", worktreePath)
+func Remove(worktreePath string, force bool) error {
+	args := []string{"worktree", "remove"}
+	if force {
+		args = append(args, "--force")
+	}
+	args = append(args, worktreePath)
+	
+	cmd := exec.Command("git", args...)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	return cmd.Run()

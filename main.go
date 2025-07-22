@@ -53,6 +53,10 @@ func main() {
 	checkoutCmd.Flags().BoolVarP(&opts.Detach, "detach", "", false, "Checkout PR with a detached HEAD")
 	checkoutCmd.Flags().StringVarP(&opts.BranchName, "branch", "b", "", "Local branch name to use (default [the name of the head branch])")
 
+	var removeOpts struct {
+		Force bool
+	}
+
 	removeCmd := &cobra.Command{
 		Use:   "remove [<number> | <url> | <branch>]",
 		Short: "Remove a pull request worktree",
@@ -63,15 +67,20 @@ func main() {
   $ gh worktree pr remove 32
 
   # Remove PR worktree from URL  
-  $ gh worktree pr remove https://github.com/OWNER/REPO/pull/32`,
+  $ gh worktree pr remove https://github.com/OWNER/REPO/pull/32
+
+  # Force remove without confirmation
+  $ gh worktree pr remove 32 --force`,
 		Args: cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if len(args) > 0 {
-				return removeRun(args[0])
+				return removeRun(args[0], removeOpts.Force)
 			}
-			return removeRunInteractive()
+			return removeRunInteractive(removeOpts.Force)
 		},
 	}
+
+	removeCmd.Flags().BoolVarP(&removeOpts.Force, "force", "f", false, "Force removal without confirmation")
 
 	listCmd := &cobra.Command{
 		Use:   "list",
@@ -277,7 +286,7 @@ func checkoutRun(opts *worktree.CheckoutOptions, selector string) error {
 	return nil
 }
 
-func removeRun(selector string) error {
+func removeRun(selector string, force bool) error {
 	// Parse PR number from selector
 	prNumber, err := github.ParsePRNumber(selector)
 	if err != nil {
@@ -318,7 +327,7 @@ func removeRun(selector string) error {
 	}
 
 	// Remove the worktree
-	err = worktree.Remove(worktreePath)
+	err = worktree.Remove(worktreePath, force)
 	if err != nil {
 		return fmt.Errorf("failed to remove worktree: %w", err)
 	}
@@ -488,7 +497,7 @@ func switchRun(shellMode bool, prNumber string) error {
 	return nil
 }
 
-func removeRunInteractive() error {
+func removeRunInteractive(force bool) error {
 	gitRoot, err := git.GetRoot()
 	if err != nil {
 		return fmt.Errorf("failed to get git root: %w", err)
@@ -528,7 +537,7 @@ func removeRunInteractive() error {
 	selectedWorktree := prWorktrees[selection]
 	
 	// Remove the worktree
-	err = worktree.Remove(selectedWorktree.Path)
+	err = worktree.Remove(selectedWorktree.Path, force)
 	if err != nil {
 		return fmt.Errorf("failed to remove worktree: %w", err)
 	}
