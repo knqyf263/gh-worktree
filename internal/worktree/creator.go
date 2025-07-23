@@ -100,32 +100,32 @@ func (c *Creator) findBaseRemote() *git.Remote {
 			return remote
 		}
 	}
-	
+
 	// Fall back to origin if upstream doesn't exist
 	for _, remote := range c.remotes {
 		if remote.Name == "origin" {
 			return remote
 		}
 	}
-	
+
 	// If neither upstream nor origin exist, use the first remote
 	if len(c.remotes) > 0 {
 		return c.remotes[0]
 	}
-	
+
 	return nil
 }
 
 func (c *Creator) findHeadRemote(pr *github.PullRequest) *git.Remote {
 	headRepoName := pr.Head.Repo.Name
 	headOwner := pr.Head.Repo.Owner.Login
-	
+
 	for _, remote := range c.remotes {
 		if strings.Contains(remote.URL, headOwner) && strings.Contains(remote.URL, headRepoName) {
 			return remote
 		}
 	}
-	
+
 	return nil
 }
 
@@ -137,7 +137,7 @@ func (c *Creator) cmdsForExistingRemote(remote *git.Remote, pr *github.PullReque
 	if err := validate.BranchName(branchName); err != nil {
 		return nil, fmt.Errorf("invalid branch name: %w", err)
 	}
-	
+
 	var cmds [][]string
 	remoteBranch := fmt.Sprintf("%s/%s", remote.Name, pr.Head.Ref)
 
@@ -181,7 +181,7 @@ func (c *Creator) cmdsForMissingRemote(pr *github.PullRequest, baseRemote *git.R
 	if err := validate.BranchName(pr.Head.Ref); err != nil {
 		return nil, fmt.Errorf("invalid head ref: %w", err)
 	}
-	
+
 	var cmds [][]string
 	ref := fmt.Sprintf("refs/pull/%d/head", pr.Number)
 
@@ -196,7 +196,7 @@ func (c *Creator) cmdsForMissingRemote(pr *github.PullRequest, baseRemote *git.R
 		fetchCmd = append(fetchCmd, "--force")
 	}
 	cmds = append(cmds, fetchCmd)
-	
+
 	cmds = append(cmds, []string{"worktree", "add", worktreePath, branchName})
 
 	// Configure remote settings for the new worktree
@@ -210,7 +210,7 @@ func (c *Creator) cmdsForMissingRemote(pr *github.PullRequest, baseRemote *git.R
 		if err := validate.RepoName(pr.Head.Repo.Owner.Login); err != nil {
 			return nil, fmt.Errorf("invalid head repo owner: %w", err)
 		}
-		
+
 		// If maintainer can modify, set up for push to head repository
 		pushRemote := fmt.Sprintf("https://github.com/%s/%s", pr.Head.Repo.Owner.Login, pr.Head.Repo.Name)
 		if err := validate.URL(pushRemote); err != nil {
@@ -231,21 +231,21 @@ func (c *Creator) storePRMetadata(worktreePath string, pr *github.PullRequest) e
 	if err := validate.BranchName(pr.Head.Ref); err != nil {
 		return fmt.Errorf("invalid branch name: %w", err)
 	}
-	
+
 	branchName := pr.Head.Ref
 	sanitizedTitle := validate.SanitizeForGitConfig(pr.Title)
-	
+
 	// Validate PR number
 	if err := validate.PRNumber(pr.Number); err != nil {
 		return fmt.Errorf("invalid PR number: %w", err)
 	}
-	
+
 	// Set PR metadata
 	err := git.SetConfig(worktreePath, fmt.Sprintf("branch.%s.gh-worktree-pr-number", branchName), strconv.Itoa(pr.Number))
 	if err != nil {
 		return fmt.Errorf("failed to set PR number config: %w", err)
 	}
-	
+
 	err = git.SetConfig(worktreePath, fmt.Sprintf("branch.%s.gh-worktree-pr-title", branchName), sanitizedTitle)
 	if err != nil {
 		return fmt.Errorf("failed to set PR title config: %w", err)

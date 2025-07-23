@@ -94,13 +94,16 @@ func main() {
 	}
 
 	switchCmd := &cobra.Command{
-		Use:   "switch [<number>]",
-		Short: "Switch to an existing pull request worktree",
+		Use:   "switch [<number> | main]",
+		Short: "Switch to an existing pull request worktree or main worktree",
 		Example: `  # Interactively select a worktree to switch to
   $ gh worktree pr switch
   
   # Switch to specific PR worktree
   $ gh worktree pr switch 9060
+  
+  # Switch to main worktree
+  $ gh worktree pr switch main
   
   # Use as shell function (add to ~/.bashrc or ~/.zshrc):
   $ ghws() { 
@@ -108,7 +111,8 @@ func main() {
       [ -n "$target" ] && cd "$target"
     }
   $ ghws     # interactive selection
-  $ ghws 9060  # switch to specific PR`,
+  $ ghws 9060  # switch to specific PR
+  $ ghws main  # switch to main worktree`,
 		Args: cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			shellMode, _ := cmd.Flags().GetBool("shell")
@@ -119,7 +123,7 @@ func main() {
 			return switchRun(shellMode, prNumber)
 		},
 	}
-	
+
 	switchCmd.Flags().BoolP("shell", "s", false, "Output path only for use in shell functions")
 
 	prCmd.AddCommand(checkoutCmd)
@@ -146,7 +150,7 @@ func checkoutRunInteractive(opts *worktree.CheckoutOptions) error {
 	if err != nil {
 		return fmt.Errorf("failed to create REST client: %w", err)
 	}
-	
+
 	var prs []github.PullRequest
 	err = client.Get(fmt.Sprintf("repos/%s/%s/pulls?state=open&per_page=100", repo.Owner, repo.Name), &prs)
 	if err != nil {
@@ -176,13 +180,13 @@ func checkoutRunInteractive(opts *worktree.CheckoutOptions) error {
 	}
 
 	selectedPR := prs[selection]
-	
+
 	// Generate worktree path
 	gitRoot, err := git.GetRoot()
 	if err != nil {
 		return fmt.Errorf("failed to get git root: %w", err)
 	}
-	
+
 	repoName := filepath.Base(gitRoot)
 	if err := validate.RepoName(repoName); err != nil {
 		return fmt.Errorf("invalid repository name: %w", err)
@@ -190,7 +194,7 @@ func checkoutRunInteractive(opts *worktree.CheckoutOptions) error {
 	if err := validate.PRNumber(selectedPR.Number); err != nil {
 		return fmt.Errorf("invalid PR number: %w", err)
 	}
-	
+
 	worktreePath, err := worktree.GeneratePath(repoName, selectedPR.Number)
 	if err != nil {
 		return fmt.Errorf("failed to generate worktree path: %w", err)
@@ -206,7 +210,7 @@ func checkoutRunInteractive(opts *worktree.CheckoutOptions) error {
 	if err != nil {
 		return fmt.Errorf("failed to create worktree creator: %w", err)
 	}
-	
+
 	err = creator.Create(worktreePath, &selectedPR, opts)
 	if err != nil {
 		return fmt.Errorf("failed to create worktree: %w", err)
@@ -237,7 +241,7 @@ func checkoutRun(opts *worktree.CheckoutOptions, selector string) error {
 	if err != nil {
 		return fmt.Errorf("failed to create REST client: %w", err)
 	}
-	
+
 	var pr github.PullRequest
 	err = client.Get(fmt.Sprintf("repos/%s/%s/pulls/%d", repo.Owner, repo.Name, prNumber), &pr)
 	if err != nil {
@@ -249,7 +253,7 @@ func checkoutRun(opts *worktree.CheckoutOptions, selector string) error {
 	if err != nil {
 		return fmt.Errorf("failed to get git root: %w", err)
 	}
-	
+
 	repoName := filepath.Base(gitRoot)
 	if err := validate.RepoName(repoName); err != nil {
 		return fmt.Errorf("invalid repository name: %w", err)
@@ -257,7 +261,7 @@ func checkoutRun(opts *worktree.CheckoutOptions, selector string) error {
 	if err := validate.PRNumber(prNumber); err != nil {
 		return fmt.Errorf("invalid PR number: %w", err)
 	}
-	
+
 	worktreePath, err := worktree.GeneratePath(repoName, prNumber)
 	if err != nil {
 		return fmt.Errorf("failed to generate worktree path: %w", err)
@@ -273,7 +277,7 @@ func checkoutRun(opts *worktree.CheckoutOptions, selector string) error {
 	if err != nil {
 		return fmt.Errorf("failed to create worktree creator: %w", err)
 	}
-	
+
 	err = creator.Create(worktreePath, &pr, opts)
 	if err != nil {
 		return fmt.Errorf("failed to create worktree: %w", err)
@@ -298,7 +302,7 @@ func removeRun(selector string, force bool) error {
 	if err != nil {
 		return fmt.Errorf("failed to get git root: %w", err)
 	}
-	
+
 	repoName := filepath.Base(gitRoot)
 	if err := validate.RepoName(repoName); err != nil {
 		return fmt.Errorf("invalid repository name: %w", err)
@@ -306,7 +310,7 @@ func removeRun(selector string, force bool) error {
 	if err := validate.PRNumber(prNumber); err != nil {
 		return fmt.Errorf("invalid PR number: %w", err)
 	}
-	
+
 	worktreePath, err := worktree.GeneratePath(repoName, prNumber)
 	if err != nil {
 		return fmt.Errorf("failed to generate worktree path: %w", err)
@@ -319,7 +323,7 @@ func removeRun(selector string, force bool) error {
 
 	// Get branch name before removing worktree
 	branchName := git.GetBranchName(worktreePath)
-	
+
 	// Get PR title from git config before removing
 	title := ""
 	if branchName != "" {
@@ -357,7 +361,7 @@ func listRun() error {
 	if err != nil {
 		return fmt.Errorf("failed to get git root: %w", err)
 	}
-	
+
 	repoName := filepath.Base(gitRoot)
 	prWorktrees, err := worktree.ListPRWorktrees(repoName)
 	if err != nil {
@@ -381,13 +385,13 @@ func listRun() error {
 		if title == "" {
 			title = "(no title)"
 		}
-		
+
 		// Convert absolute path to relative path
 		relPath, err := filepath.Rel(cwd, wt.Path)
 		if err != nil {
 			relPath = wt.Path // Fall back to absolute path if relative path fails
 		}
-		
+
 		fmt.Printf("  #%d\t%s\t%s\t%s\n", wt.PRNumber, wt.Branch, title, relPath)
 	}
 
@@ -399,54 +403,59 @@ func switchRun(shellMode bool, prNumber string) error {
 	if err != nil {
 		return fmt.Errorf("failed to get git root: %w", err)
 	}
-	
+
 	repoName := filepath.Base(gitRoot)
 	prWorktrees, err := worktree.ListPRWorktrees(repoName)
 	if err != nil {
 		return fmt.Errorf("failed to get PR worktrees: %w", err)
 	}
 
-	if len(prWorktrees) == 0 {
-		if !shellMode {
-			fmt.Println("No PR worktrees found.")
-		}
-		// In shell mode, output nothing when no worktrees found
-		return nil
-	}
-
 	var selectedWorktree *worktree.Info
+	var targetPath string
 
-	// If PR number is specified, find that specific worktree
+	// Handle direct selection
 	if prNumber != "" {
-		prNum, err := github.ParsePRNumber(prNumber)
-		if err != nil {
-			return fmt.Errorf("invalid PR number: %w", err)
-		}
-		
-		for _, wt := range prWorktrees {
-			if wt.PRNumber == prNum {
-				selectedWorktree = wt
-				break
+		if prNumber == "main" {
+			// Handle main worktree selection
+			targetPath = gitRoot
+		} else {
+			// Handle PR number selection
+			prNum, err := github.ParsePRNumber(prNumber)
+			if err != nil {
+				return fmt.Errorf("invalid PR number: %w", err)
 			}
-		}
-		
-		if selectedWorktree == nil {
-			if !shellMode {
-				fmt.Printf("Worktree for #%d not found.\n", prNum)
+
+			for _, wt := range prWorktrees {
+				if wt.PRNumber == prNum {
+					selectedWorktree = wt
+					break
+				}
 			}
-			return nil
+
+			if selectedWorktree == nil {
+				if !shellMode {
+					fmt.Printf("Worktree for #%d not found.\n", prNum)
+				}
+				return nil
+			}
+			targetPath = selectedWorktree.Path
 		}
 	} else {
 		// Interactive selection
 		candidates := []string{}
+
+		// Add main worktree as first option
+		candidates = append(candidates, "main\tmain\t(main worktree)")
+
+		// Add PR worktrees
 		for _, wt := range prWorktrees {
 			title := wt.Title
 			if title == "" {
 				title = "(no title)"
 			}
-			candidates = append(candidates, fmt.Sprintf("#%d\t%s\t%s", 
-				wt.PRNumber, 
-				wt.Branch, 
+			candidates = append(candidates, fmt.Sprintf("#%d\t%s\t%s",
+				wt.PRNumber,
+				wt.Branch,
 				title))
 		}
 
@@ -469,9 +478,16 @@ func switchRun(shellMode bool, prNumber string) error {
 			return nil
 		}
 
-		selectedWorktree = prWorktrees[selection]
+		if selection == 0 {
+			// Main worktree selected
+			targetPath = gitRoot
+		} else {
+			// PR worktree selected (adjust index since main is first)
+			selectedWorktree = prWorktrees[selection-1]
+			targetPath = selectedWorktree.Path
+		}
 	}
-	
+
 	// Get current working directory for relative path calculation
 	cwd, err := os.Getwd()
 	if err != nil {
@@ -479,9 +495,9 @@ func switchRun(shellMode bool, prNumber string) error {
 	}
 
 	// Convert absolute path to relative path
-	relPath, err := filepath.Rel(cwd, selectedWorktree.Path)
+	relPath, err := filepath.Rel(cwd, targetPath)
 	if err != nil {
-		relPath = selectedWorktree.Path // Fall back to absolute path
+		relPath = targetPath // Fall back to absolute path
 	}
 
 	// Output based on mode
@@ -490,10 +506,14 @@ func switchRun(shellMode bool, prNumber string) error {
 		fmt.Print(relPath)
 	} else {
 		// Normal mode: output a friendly message with command
-		fmt.Printf("To switch to worktree for #%d:\n", selectedWorktree.PRNumber)
+		if prNumber == "main" || (prNumber == "" && targetPath == gitRoot) {
+			fmt.Printf("To switch to main worktree:\n")
+		} else {
+			fmt.Printf("To switch to worktree for #%d:\n", selectedWorktree.PRNumber)
+		}
 		fmt.Printf("cd %s\n", relPath)
 	}
-	
+
 	return nil
 }
 
@@ -502,7 +522,7 @@ func removeRunInteractive(force bool) error {
 	if err != nil {
 		return fmt.Errorf("failed to get git root: %w", err)
 	}
-	
+
 	repoName := filepath.Base(gitRoot)
 	prWorktrees, err := worktree.ListPRWorktrees(repoName)
 	if err != nil {
@@ -517,9 +537,9 @@ func removeRunInteractive(force bool) error {
 	// Create candidates list in the same format as gh CLI
 	candidates := []string{}
 	for _, wt := range prWorktrees {
-		candidates = append(candidates, fmt.Sprintf("#%d\t%s\t%s", 
-			wt.PRNumber, 
-			wt.Branch, 
+		candidates = append(candidates, fmt.Sprintf("#%d\t%s\t%s",
+			wt.PRNumber,
+			wt.Branch,
 			filepath.Base(wt.Path)))
 	}
 
@@ -535,7 +555,7 @@ func removeRunInteractive(force bool) error {
 	}
 
 	selectedWorktree := prWorktrees[selection]
-	
+
 	// Remove the worktree
 	err = worktree.Remove(selectedWorktree.Path, force)
 	if err != nil {

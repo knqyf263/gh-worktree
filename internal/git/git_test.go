@@ -12,9 +12,9 @@ func TestGetBranchName(t *testing.T) {
 	}
 
 	tests := []struct {
-		name     string
-		path     string
-		wantErr  bool
+		name    string
+		path    string
+		wantErr bool
 	}{
 		{
 			name:    "current directory",
@@ -81,10 +81,10 @@ func TestGetConfig(t *testing.T) {
 	}
 
 	tests := []struct {
-		name     string
-		path     string
-		key      string
-		wantErr  bool
+		name    string
+		path    string
+		key     string
+		wantErr bool
 	}{
 		{
 			name:    "non-existent config key",
@@ -117,11 +117,11 @@ func TestSetConfig(t *testing.T) {
 	}
 
 	tests := []struct {
-		name     string
-		path     string
-		key      string
-		value    string
-		wantErr  bool
+		name    string
+		path    string
+		key     string
+		value   string
+		wantErr bool
 	}{
 		{
 			name:    "invalid path",

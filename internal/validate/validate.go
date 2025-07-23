@@ -75,24 +75,24 @@ func URL(urlStr string) error {
 	if urlStr == "" {
 		return fmt.Errorf("URL cannot be empty")
 	}
-	
+
 	parsedURL, err := url.Parse(urlStr)
 	if err != nil {
 		return fmt.Errorf("invalid URL format: %w", err)
 	}
-	
+
 	if parsedURL.Scheme != "https" {
 		return fmt.Errorf("only HTTPS URLs are allowed")
 	}
-	
+
 	// Check for credentials in URL
 	if parsedURL.User != nil {
 		return fmt.Errorf("URL cannot contain credentials")
 	}
-	
+
 	if parsedURL.Host != "github.com" {
 		return fmt.Errorf("only github.com URLs are allowed")
 	}
-	
+
 	return nil
 }

@@ -38,21 +38,21 @@ func ParsePRNumber(selector string) (int, error) {
 		if err := validate.URL(selector); err != nil {
 			return 0, fmt.Errorf("invalid URL: %w", err)
 		}
-		
+
 		parts := strings.Split(selector, "/pull/")
 		if len(parts) != 2 {
 			return 0, fmt.Errorf("invalid PR URL format")
 		}
-		
+
 		prNumber, err := strconv.Atoi(strings.TrimSpace(parts[1]))
 		if err != nil {
 			return 0, fmt.Errorf("invalid PR number in URL: %w", err)
 		}
-		
+
 		if err := validate.PRNumber(prNumber); err != nil {
 			return 0, err
 		}
-		
+
 		return prNumber, nil
 	}
 
@@ -61,18 +61,18 @@ func ParsePRNumber(selector string) (int, error) {
 	if err != nil {
 		return 0, fmt.Errorf("invalid PR number format: %w", err)
 	}
-	
+
 	if err := validate.PRNumber(prNumber); err != nil {
 		return 0, err
 	}
-	
+
 	return prNumber, nil
 }
 
 // FormatPRCandidate formats a PR for display in selection list
 func FormatPRCandidate(pr *PullRequest) string {
-	return fmt.Sprintf("#%d\t%s\t%s", 
-		pr.Number, 
-		pr.Head.Ref, 
+	return fmt.Sprintf("#%d\t%s\t%s",
+		pr.Number,
+		pr.Head.Ref,
 		pr.Head.Repo.Owner.Login+"/"+pr.Head.Repo.Name)
 }

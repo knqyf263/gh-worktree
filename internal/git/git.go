@@ -24,7 +24,7 @@ func GetRemotes() ([]*Remote, error) {
 
 	var remotes []*Remote
 	seen := make(map[string]bool)
-	
+
 	lines := strings.Split(strings.TrimSpace(string(output)), "\n")
 	for _, line := range lines {
 		if strings.Contains(line, "(fetch)") {
@@ -51,20 +51,20 @@ func GetRoot() (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("failed to get git common dir: %w", err)
 	}
-	
+
 	gitCommonDir := strings.TrimSpace(string(output))
-	
+
 	// If it's an absolute path, get its parent
 	if filepath.IsAbs(gitCommonDir) {
 		return filepath.Dir(gitCommonDir), nil
 	}
-	
+
 	// If it's a relative path, resolve it from current directory
 	currentDir, err := os.Getwd()
 	if err != nil {
 		return "", fmt.Errorf("failed to get current directory: %w", err)
 	}
-	
+
 	absGitDir := filepath.Join(currentDir, gitCommonDir)
 	return filepath.Dir(absGitDir), nil
 }
@@ -91,7 +91,7 @@ func ExecuteCommands(cmdQueue [][]string) error {
 		cmd := exec.Command("git", args...)
 		cmd.Stdout = os.Stdout
 		cmd.Stderr = os.Stderr
-		
+
 		if err := cmd.Run(); err != nil {
 			return fmt.Errorf("failed to execute git %s: %w", strings.Join(args, " "), err)
 		}
