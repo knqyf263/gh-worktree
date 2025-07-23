@@ -12,11 +12,11 @@ import (
 
 // Info represents information about a git worktree
 type Info struct {
-	Path      string
-	Commit    string
-	Branch    string
-	PRNumber  int
-	Title     string
+	Path     string
+	Commit   string
+	Branch   string
+	PRNumber int
+	Title    string
 }
 
 // List returns all configured worktrees
@@ -25,7 +25,7 @@ func List() ([]*Info, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to get git root: %w", err)
 	}
-	
+
 	cmd := exec.Command("git", "-C", gitRoot, "worktree", "list", "--porcelain")
 	output, err := cmd.Output()
 	if err != nil {
@@ -34,7 +34,7 @@ func List() ([]*Info, error) {
 
 	var worktrees []*Info
 	lines := strings.Split(strings.TrimSpace(string(output)), "\n")
-	
+
 	var currentWorktree *Info
 	for _, line := range lines {
 		if line == "" {
@@ -44,7 +44,7 @@ func List() ([]*Info, error) {
 			}
 			continue
 		}
-		
+
 		if strings.HasPrefix(line, "worktree ") {
 			currentWorktree = &Info{
 				Path: strings.TrimPrefix(line, "worktree "),
@@ -65,7 +65,7 @@ func List() ([]*Info, error) {
 			}
 		}
 	}
-	
+
 	// Add the last worktree if exists
 	if currentWorktree != nil {
 		worktrees = append(worktrees, currentWorktree)
@@ -85,9 +85,9 @@ func ListPRWorktrees(repoName string) ([]*Info, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to get git root: %w", err)
 	}
-	
+
 	parentDir := filepath.Dir(gitRoot)
-	
+
 	var prWorktrees []*Info
 	for _, wt := range allWorktrees {
 		// Check if this is a PR worktree based on naming pattern
@@ -119,7 +119,7 @@ func GetPRTitle(worktreePath, branchName string) string {
 	if branchName == "" {
 		return ""
 	}
-	
+
 	title, err := git.GetConfig(worktreePath, fmt.Sprintf("branch.%s.gh-worktree-pr-title", branchName))
 	if err != nil {
 		return ""
@@ -134,7 +134,7 @@ func Remove(worktreePath string, force bool) error {
 		args = append(args, "--force")
 	}
 	args = append(args, worktreePath)
-	
+
 	cmd := exec.Command("git", args...)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
@@ -153,6 +153,6 @@ func GeneratePath(repoName string, prNumber int) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("failed to get git root: %w", err)
 	}
-	
+
 	return filepath.Join(filepath.Dir(gitRoot), fmt.Sprintf("%s-pr%d", repoName, prNumber)), nil
 }
