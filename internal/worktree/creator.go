@@ -17,6 +17,7 @@ type CheckoutOptions struct {
 	Force             bool
 	Detach            bool
 	BranchName        string
+	ShellMode         bool
 }
 
 // Creator handles worktree creation logic

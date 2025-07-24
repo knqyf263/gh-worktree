@@ -38,9 +38,19 @@ func main() {
   $ gh worktree pr checkout 32
 
   # Check out PR from URL in a new worktree  
-  $ gh worktree pr checkout https://github.com/OWNER/REPO/pull/32`,
+  $ gh worktree pr checkout https://github.com/OWNER/REPO/pull/32
+  
+  # Use as shell function to checkout and cd (add to ~/.bashrc or ~/.zshrc):
+  $ ghwc() { 
+      local target=$(gh worktree pr checkout --shell "$@")
+      [ -n "$target" ] && cd "$target"
+    }
+  $ ghwc     # interactive checkout
+  $ ghwc 9060  # checkout specific PR`,
 		Args: cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
+			shellMode, _ := cmd.Flags().GetBool("shell")
+			opts.ShellMode = shellMode
 			if len(args) > 0 {
 				return checkoutRun(&opts, args[0])
 			}
@@ -52,6 +62,7 @@ func main() {
 	checkoutCmd.Flags().BoolVarP(&opts.Force, "force", "f", false, "Reset the existing local branch to the latest state of the pull request")
 	checkoutCmd.Flags().BoolVarP(&opts.Detach, "detach", "", false, "Checkout PR with a detached HEAD")
 	checkoutCmd.Flags().StringVarP(&opts.BranchName, "branch", "b", "", "Local branch name to use (default [the name of the head branch])")
+	checkoutCmd.Flags().BoolP("shell", "s", false, "Output path only for use in shell functions")
 
 	var removeOpts struct {
 		Force bool
@@ -171,11 +182,18 @@ func checkoutRunInteractive(opts *worktree.CheckoutOptions) error {
 	// Use gh CLI's built-in selection
 	selection, err := promptSelect("Select a pull request to check out", candidates)
 	if err != nil {
+		if opts.ShellMode {
+			// In shell mode, if prompting fails, just return empty to avoid cd errors
+			return nil
+		}
 		return err
 	}
 
 	if selection == -1 {
-		fmt.Println("Cancelled.")
+		if !opts.ShellMode {
+			fmt.Println("Cancelled.")
+		}
+		// In shell mode, output nothing when cancelled so cd doesn't change directory
 		return nil
 	}
 
@@ -216,9 +234,27 @@ func checkoutRunInteractive(opts *worktree.CheckoutOptions) error {
 		return fmt.Errorf("failed to create worktree: %w", err)
 	}
 
-	fmt.Printf("Created worktree for #%d at %s\n", selectedPR.Number, worktreePath)
-	if selectedPR.Title != "" {
-		fmt.Printf("Title: %s\n", selectedPR.Title)
+	// Output based on mode
+	if opts.ShellMode {
+		// Shell mode: output only the path for use in shell functions
+		// Get current working directory for relative path calculation
+		cwd, err := os.Getwd()
+		if err != nil {
+			return fmt.Errorf("failed to get current directory: %w", err)
+		}
+		
+		// Convert absolute path to relative path
+		relPath, err := filepath.Rel(cwd, worktreePath)
+		if err != nil {
+			relPath = worktreePath // Fall back to absolute path
+		}
+		fmt.Print(relPath)
+	} else {
+		// Normal mode: output a friendly message
+		fmt.Printf("Created worktree for #%d at %s\n", selectedPR.Number, worktreePath)
+		if selectedPR.Title != "" {
+			fmt.Printf("Title: %s\n", selectedPR.Title)
+		}
 	}
 	return nil
 }
@@ -283,9 +319,27 @@ func checkoutRun(opts *worktree.CheckoutOptions, selector string) error {
 		return fmt.Errorf("failed to create worktree: %w", err)
 	}
 
-	fmt.Printf("Created worktree for #%d at %s\n", prNumber, worktreePath)
-	if pr.Title != "" {
-		fmt.Printf("Title: %s\n", pr.Title)
+	// Output based on mode
+	if opts.ShellMode {
+		// Shell mode: output only the path for use in shell functions
+		// Get current working directory for relative path calculation
+		cwd, err := os.Getwd()
+		if err != nil {
+			return fmt.Errorf("failed to get current directory: %w", err)
+		}
+		
+		// Convert absolute path to relative path
+		relPath, err := filepath.Rel(cwd, worktreePath)
+		if err != nil {
+			relPath = worktreePath // Fall back to absolute path
+		}
+		fmt.Print(relPath)
+	} else {
+		// Normal mode: output a friendly message
+		fmt.Printf("Created worktree for #%d at %s\n", prNumber, worktreePath)
+		if pr.Title != "" {
+			fmt.Printf("Title: %s\n", pr.Title)
+		}
 	}
 	return nil
 }

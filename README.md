@@ -103,12 +103,18 @@ parent-directory/
 
 ## Shell Integration
 
-For the best experience, add this shell function to your `~/.bashrc` or `~/.zshrc`:
+For the best experience, add these shell functions to your `~/.bashrc` or `~/.zshrc`:
 
 ```bash
 # Quick worktree switcher
 ghws() { 
   local target=$(gh worktree pr switch --shell "$@")
+  [ -n "$target" ] && cd "$target"
+}
+
+# Checkout and cd into new worktree
+ghwc() { 
+  local target=$(gh worktree pr checkout --shell "$@")
   [ -n "$target" ] && cd "$target"
 }
 ```
@@ -120,6 +126,12 @@ ghws
 
 # Switch to specific PR
 ghws 1234
+
+# Interactive checkout and cd
+ghwc
+
+# Checkout specific PR and cd
+ghwc 1234
 ```
 
 ## How It Works
