@@ -89,11 +89,10 @@ func GetBranchName(worktreePath string) string {
 func ExecuteCommands(cmdQueue [][]string) error {
 	for _, args := range cmdQueue {
 		cmd := exec.Command("git", args...)
-		cmd.Stdout = os.Stdout
-		cmd.Stderr = os.Stderr
-
-		if err := cmd.Run(); err != nil {
-			return fmt.Errorf("failed to execute git %s: %w", strings.Join(args, " "), err)
+		// Don't output to stdout/stderr to avoid interfering with shell mode
+		output, err := cmd.CombinedOutput()
+		if err != nil {
+			return fmt.Errorf("failed to execute git %s: %w (output: %s)", strings.Join(args, " "), err, string(output))
 		}
 	}
 	return nil
