@@ -17,6 +17,7 @@ import (
 
 func main() {
 	var opts worktree.CheckoutOptions
+	var shellMode bool
 
 	rootCmd := &cobra.Command{
 		Use:   "gh-worktree",
@@ -49,8 +50,13 @@ func main() {
   $ ghwc 9060  # checkout specific PR`,
 		Args: cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			shellMode, _ := cmd.Flags().GetBool("shell")
-			opts.ShellMode = shellMode
+			shellModeFlag, _ := cmd.Flags().GetBool("shell")
+			opts.ShellMode = shellModeFlag
+			shellMode = shellModeFlag // Set the outer shellMode variable
+			if shellModeFlag {
+				cmd.SilenceUsage = true
+				cmd.SilenceErrors = true
+			}
 			if len(args) > 0 {
 				return checkoutRun(&opts, args[0])
 			}
@@ -126,12 +132,17 @@ func main() {
   $ ghws main  # switch to main worktree`,
 		Args: cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			shellMode, _ := cmd.Flags().GetBool("shell")
+			shellModeFlag, _ := cmd.Flags().GetBool("shell")
+			shellMode = shellModeFlag // Set the outer shellMode variable
+			if shellModeFlag {
+				cmd.SilenceUsage = true
+				cmd.SilenceErrors = true
+			}
 			prNumber := ""
 			if len(args) > 0 {
 				prNumber = args[0]
 			}
-			return switchRun(shellMode, prNumber)
+			return switchRun(shellModeFlag, prNumber)
 		},
 	}
 
@@ -144,7 +155,9 @@ func main() {
 	rootCmd.AddCommand(prCmd)
 
 	if err := rootCmd.Execute(); err != nil {
-		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+		if !shellMode {
+			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+		}
 		os.Exit(1)
 	}
 }
@@ -220,6 +233,19 @@ func checkoutRunInteractive(opts *worktree.CheckoutOptions) error {
 
 	// Check if worktree already exists
 	if _, err := os.Stat(worktreePath); err == nil {
+		if opts.ShellMode {
+			// In shell mode, output the existing path so cd still works
+			cwd, err := os.Getwd()
+			if err != nil {
+				return fmt.Errorf("failed to get current directory: %w", err)
+			}
+			relPath, err := filepath.Rel(cwd, worktreePath)
+			if err != nil {
+				relPath = worktreePath
+			}
+			fmt.Print(relPath)
+			return nil
+		}
 		return fmt.Errorf("worktree for PR #%d already exists at %s", selectedPR.Number, worktreePath)
 	}
 
@@ -305,6 +331,19 @@ func checkoutRun(opts *worktree.CheckoutOptions, selector string) error {
 
 	// Check if worktree already exists
 	if _, err := os.Stat(worktreePath); err == nil {
+		if opts.ShellMode {
+			// In shell mode, output the existing path so cd still works
+			cwd, err := os.Getwd()
+			if err != nil {
+				return fmt.Errorf("failed to get current directory: %w", err)
+			}
+			relPath, err := filepath.Rel(cwd, worktreePath)
+			if err != nil {
+				relPath = worktreePath
+			}
+			fmt.Print(relPath)
+			return nil
+		}
 		return fmt.Errorf("worktree for PR #%d already exists at %s", prNumber, worktreePath)
 	}
 
