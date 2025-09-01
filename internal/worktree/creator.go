@@ -130,6 +130,27 @@ func (c *Creator) findHeadRemote(pr *github.PullRequest) *git.Remote {
 	return nil
 }
 
+func (c *Creator) isCrossRepoPR(pr *github.PullRequest) bool {
+	return pr.Head.Repo.Owner.Login != c.repo.Owner
+}
+
+func (c *Creator) buildForkURL(pr *github.PullRequest) (string, error) {
+	// Validate GitHub URL components before constructing URL
+	if err := validate.RepoName(pr.Head.Repo.Name); err != nil {
+		return "", fmt.Errorf("invalid head repo name: %w", err)
+	}
+	if err := validate.RepoName(pr.Head.Repo.Owner.Login); err != nil {
+		return "", fmt.Errorf("invalid head repo owner: %w", err)
+	}
+
+	forkURL := fmt.Sprintf("https://github.com/%s/%s", pr.Head.Repo.Owner.Login, pr.Head.Repo.Name)
+	if err := validate.URL(forkURL); err != nil {
+		return "", fmt.Errorf("invalid fork URL: %w", err)
+	}
+	
+	return forkURL, nil
+}
+
 func (c *Creator) cmdsForExistingRemote(remote *git.Remote, pr *github.PullRequest, opts *CheckoutOptions, worktreePath, branchName string) ([][]string, error) {
 	// Validate inputs
 	if err := validate.BranchName(pr.Head.Ref); err != nil {
@@ -163,8 +184,19 @@ func (c *Creator) cmdsForExistingRemote(remote *git.Remote, pr *github.PullReque
 		} else {
 			cmds = append(cmds, []string{"worktree", "add", "-b", branchName, worktreePath, remoteBranch})
 			// Set up tracking after creating the worktree
-			cmds = append(cmds, []string{"-C", worktreePath, "config", fmt.Sprintf("branch.%s.remote", branchName), remote.Name})
+			// For cross-repo PRs, use the fork's URL as the remote instead of the remote name
+			remoteValue := remote.Name
+			if c.isCrossRepoPR(pr) {
+				// This is a cross-repo PR, use the fork's URL
+				remoteValue = remote.URL
+			}
+			cmds = append(cmds, []string{"-C", worktreePath, "config", fmt.Sprintf("branch.%s.remote", branchName), remoteValue})
 			cmds = append(cmds, []string{"-C", worktreePath, "config", fmt.Sprintf("branch.%s.merge", branchName), fmt.Sprintf("refs/heads/%s", pr.Head.Ref)})
+			
+			// For cross-repo PRs, also set pushRemote to the same URL
+			if c.isCrossRepoPR(pr) {
+				cmds = append(cmds, []string{"-C", worktreePath, "config", fmt.Sprintf("branch.%s.pushremote", branchName), remoteValue})
+			}
 		}
 	}
 
@@ -201,27 +233,25 @@ func (c *Creator) cmdsForMissingRemote(pr *github.PullRequest, baseRemote *git.R
 	cmds = append(cmds, []string{"worktree", "add", worktreePath, branchName})
 
 	// Configure remote settings for the new worktree
-	remoteName := baseRemote.Name
+	remoteValue := baseRemote.Name
 	mergeRef := ref
-	if pr.MaintainerCanModify && pr.Head.Repo.Name != "" {
-		// Validate GitHub URL components before constructing URL
-		if err := validate.RepoName(pr.Head.Repo.Name); err != nil {
-			return nil, fmt.Errorf("invalid head repo name: %w", err)
+	
+	// For cross-repo PRs, always use the fork's URL
+	if c.isCrossRepoPR(pr) && pr.Head.Repo.Name != "" {
+		forkURL, err := c.buildForkURL(pr)
+		if err != nil {
+			return nil, err
 		}
-		if err := validate.RepoName(pr.Head.Repo.Owner.Login); err != nil {
-			return nil, fmt.Errorf("invalid head repo owner: %w", err)
-		}
-
-		// If maintainer can modify, set up for push to head repository
-		pushRemote := fmt.Sprintf("https://github.com/%s/%s", pr.Head.Repo.Owner.Login, pr.Head.Repo.Name)
-		if err := validate.URL(pushRemote); err != nil {
-			return nil, fmt.Errorf("invalid push remote URL: %w", err)
-		}
+		
+		remoteValue = forkURL
 		mergeRef = fmt.Sprintf("refs/heads/%s", pr.Head.Ref)
-		cmds = append(cmds, []string{"-C", worktreePath, "config", fmt.Sprintf("branch.%s.pushRemote", branchName), pushRemote})
+		cmds = append(cmds, []string{"-C", worktreePath, "config", fmt.Sprintf("branch.%s.pushRemote", branchName), forkURL})
+	} else if pr.MaintainerCanModify && pr.Head.Repo.Name != "" {
+		// For same-repo PRs with maintainer can modify, just update merge ref
+		mergeRef = fmt.Sprintf("refs/heads/%s", pr.Head.Ref)
 	}
 
-	cmds = append(cmds, []string{"-C", worktreePath, "config", fmt.Sprintf("branch.%s.remote", branchName), remoteName})
+	cmds = append(cmds, []string{"-C", worktreePath, "config", fmt.Sprintf("branch.%s.remote", branchName), remoteValue})
 	cmds = append(cmds, []string{"-C", worktreePath, "config", fmt.Sprintf("branch.%s.merge", branchName), mergeRef})
 
 	return cmds, nil

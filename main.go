@@ -211,6 +211,13 @@ func checkoutRunInteractive(opts *worktree.CheckoutOptions) error {
 	}
 
 	selectedPR := prs[selection]
+	
+	// Fetch full PR details to get maintainer_can_modify and other fields
+	var fullPR github.PullRequest
+	err = client.Get(fmt.Sprintf("repos/%s/%s/pulls/%d", repo.Owner, repo.Name, selectedPR.Number), &fullPR)
+	if err != nil {
+		return fmt.Errorf("failed to get full PR details: %w", err)
+	}
 
 	// Generate worktree path
 	gitRoot, err := git.GetRoot()
@@ -222,11 +229,11 @@ func checkoutRunInteractive(opts *worktree.CheckoutOptions) error {
 	if err := validate.RepoName(repoName); err != nil {
 		return fmt.Errorf("invalid repository name: %w", err)
 	}
-	if err := validate.PRNumber(selectedPR.Number); err != nil {
+	if err := validate.PRNumber(fullPR.Number); err != nil {
 		return fmt.Errorf("invalid PR number: %w", err)
 	}
 
-	worktreePath, err := worktree.GeneratePath(repoName, selectedPR.Number)
+	worktreePath, err := worktree.GeneratePath(repoName, fullPR.Number)
 	if err != nil {
 		return fmt.Errorf("failed to generate worktree path: %w", err)
 	}
@@ -246,7 +253,7 @@ func checkoutRunInteractive(opts *worktree.CheckoutOptions) error {
 			fmt.Print(relPath)
 			return nil
 		}
-		return fmt.Errorf("worktree for PR #%d already exists at %s", selectedPR.Number, worktreePath)
+		return fmt.Errorf("worktree for PR #%d already exists at %s", fullPR.Number, worktreePath)
 	}
 
 	// Create worktree
@@ -255,7 +262,7 @@ func checkoutRunInteractive(opts *worktree.CheckoutOptions) error {
 		return fmt.Errorf("failed to create worktree creator: %w", err)
 	}
 
-	err = creator.Create(worktreePath, &selectedPR, opts)
+	err = creator.Create(worktreePath, &fullPR, opts)
 	if err != nil {
 		return fmt.Errorf("failed to create worktree: %w", err)
 	}
@@ -277,9 +284,9 @@ func checkoutRunInteractive(opts *worktree.CheckoutOptions) error {
 		fmt.Print(relPath)
 	} else {
 		// Normal mode: output a friendly message
-		fmt.Printf("Created worktree for #%d at %s\n", selectedPR.Number, worktreePath)
-		if selectedPR.Title != "" {
-			fmt.Printf("Title: %s\n", selectedPR.Title)
+		fmt.Printf("Created worktree for #%d at %s\n", fullPR.Number, worktreePath)
+		if fullPR.Title != "" {
+			fmt.Printf("Title: %s\n", fullPR.Title)
 		}
 	}
 	return nil
