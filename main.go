@@ -1006,7 +1006,7 @@ func switchAllRun(shellMode bool, identifier string) error {
 		candidates := []string{}
 
 		// Add main worktree as first option
-		candidates = append(candidates, "main\tmain\t(main worktree)")
+		candidates = append(candidates, "main\t(main worktree)")
 
 		// Add PR worktrees
 		for _, wt := range prWorktrees {
@@ -1014,16 +1014,14 @@ func switchAllRun(shellMode bool, identifier string) error {
 			if title == "" {
 				title = "(no title)"
 			}
-			candidates = append(candidates, fmt.Sprintf("#%d\t%s\t%s",
+			candidates = append(candidates, fmt.Sprintf("#%d\t%s",
 				wt.PRNumber,
-				wt.Branch,
 				title))
 		}
 
 		// Add branch worktrees
 		for _, wt := range branchWorktrees {
-			candidates = append(candidates, fmt.Sprintf("branch:%s\t%s\t(local development)",
-				wt.Branch,
+			candidates = append(candidates, fmt.Sprintf("%s\t(local development)",
 				wt.Branch))
 		}
 
