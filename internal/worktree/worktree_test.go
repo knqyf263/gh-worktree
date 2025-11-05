@@ -51,6 +51,74 @@ func TestGeneratePath(t *testing.T) {
 	}
 }
 
+func TestSanitizeBranchNameForPath(t *testing.T) {
+	tests := []struct {
+		name       string
+		branchName string
+		want       string
+	}{
+		{
+			name:       "simple branch name",
+			branchName: "feature",
+			want:       "feature",
+		},
+		{
+			name:       "branch name with slash",
+			branchName: "feat/authentication",
+			want:       "feat-authentication",
+		},
+		{
+			name:       "branch name with multiple slashes",
+			branchName: "bugfix/issue-123/fix",
+			want:       "bugfix-issue-123-fix",
+		},
+		{
+			name:       "branch name with consecutive dots",
+			branchName: "feature..test",
+			want:       "feature-test",
+		},
+		{
+			name:       "branch name with multiple consecutive dots",
+			branchName: "feature...test",
+			want:       "feature-test",
+		},
+		{
+			name:       "branch name starting with dot",
+			branchName: ".hidden-feature",
+			want:       "hidden-feature",
+		},
+		{
+			name:       "branch name with leading dots",
+			branchName: "...feature",
+			want:       "feature",
+		},
+		{
+			name:       "branch name with slash and dots",
+			branchName: "feat/test..version",
+			want:       "feat-test-version",
+		},
+		{
+			name:       "branch name with single dot (allowed)",
+			branchName: "feature.test",
+			want:       "feature.test",
+		},
+		{
+			name:       "empty branch name",
+			branchName: "",
+			want:       "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := sanitizeBranchNameForPath(tt.branchName)
+			if got != tt.want {
+				t.Errorf("sanitizeBranchNameForPath(%q) = %q, want %q", tt.branchName, got, tt.want)
+			}
+		})
+	}
+}
+
 func TestGeneratePathForBranch(t *testing.T) {
 	// Skip if not in a git repository
 	if _, err := os.Stat(".git"); os.IsNotExist(err) {
@@ -62,42 +130,48 @@ func TestGeneratePathForBranch(t *testing.T) {
 		repoName   string
 		branchName string
 		wantErr    bool
-		wantSlash  bool // whether the result should contain a slash from branch name
 	}{
 		{
 			name:       "simple branch name",
 			repoName:   "test-repo",
 			branchName: "feature",
 			wantErr:    false,
-			wantSlash:  false,
 		},
 		{
 			name:       "branch name with slash",
 			repoName:   "test-repo",
 			branchName: "feat/authentication",
 			wantErr:    false,
-			wantSlash:  false, // slash should be replaced with dash
 		},
 		{
 			name:       "branch name with multiple slashes",
 			repoName:   "test-repo",
 			branchName: "bugfix/issue-123/fix",
 			wantErr:    false,
-			wantSlash:  false, // slashes should be replaced with dashes
+		},
+		{
+			name:       "branch name with consecutive dots",
+			repoName:   "test-repo",
+			branchName: "feature..test",
+			wantErr:    false,
+		},
+		{
+			name:       "branch name starting with dot",
+			repoName:   "test-repo",
+			branchName: ".hidden-feature",
+			wantErr:    false,
 		},
 		{
 			name:       "empty repo name",
 			repoName:   "",
 			branchName: "feature",
 			wantErr:    false,
-			wantSlash:  false,
 		},
 		{
 			name:       "empty branch name",
 			repoName:   "test-repo",
 			branchName: "",
 			wantErr:    false,
-			wantSlash:  false,
 		},
 	}
 
@@ -110,24 +184,6 @@ func TestGeneratePathForBranch(t *testing.T) {
 			}
 			if !tt.wantErr && path == "" {
 				t.Errorf("GeneratePathForBranch(%s, %s) returned empty path", tt.repoName, tt.branchName)
-			}
-			// Verify that slashes in branch names are replaced
-			if !tt.wantErr && tt.branchName != "" && !tt.wantSlash {
-				// The path should not contain the original slash pattern from branch name
-				// For example, "feat/authentication" should become "test-repo-feat-authentication"
-				// not "test-repo-feat/authentication"
-				if tt.branchName != "" && len(tt.branchName) > 0 {
-					// Check if the sanitized branch name is in the path (slashes replaced with dashes)
-					sanitizedBranch := ""
-					for _, c := range tt.branchName {
-						if c == '/' {
-							sanitizedBranch += "-"
-						} else {
-							sanitizedBranch += string(c)
-						}
-					}
-					// We don't check exact match, just that slashes were handled
-				}
 			}
 		})
 	}

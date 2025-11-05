@@ -5,6 +5,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"strconv"
 	"strings"
 
@@ -279,17 +280,36 @@ func GeneratePath(repoName string, prNumber int) (string, error) {
 	return filepath.Join(filepath.Dir(gitRoot), fmt.Sprintf("%s-pr%d", repoName, prNumber)), nil
 }
 
+// sanitizeBranchNameForPath converts a git branch name to a safe directory name.
+// It handles characters that are valid in git branch names but problematic for filesystems:
+// - Replaces '/' with '-' to avoid creating nested directories
+// - Replaces consecutive dots '..' to avoid parent directory references
+// - Removes leading dots to avoid hidden directories
+func sanitizeBranchNameForPath(branchName string) string {
+	// Replace slashes with dashes to avoid creating nested directories
+	sanitized := strings.ReplaceAll(branchName, "/", "-")
+
+	// Remove leading dots to avoid hidden directories
+	sanitized = strings.TrimLeft(sanitized, ".")
+
+	// Replace two or more consecutive dots with a single dash to avoid parent directory references
+	// Using regex to handle all cases like "..", "...", "...." etc.
+	consecutiveDotsPattern := regexp.MustCompile(`\.{2,}`)
+	sanitized = consecutiveDotsPattern.ReplaceAllString(sanitized, "-")
+
+	return sanitized
+}
+
 // GeneratePathForBranch generates the path for a branch worktree.
 // Format: ../repo-name-{branch-name}
-// Slashes in branch names are replaced with dashes to avoid creating nested directories.
+// Branch names are sanitized to avoid filesystem issues while preserving readability.
 func GeneratePathForBranch(repoName string, branchName string) (string, error) {
 	gitRoot, err := git.GetRoot()
 	if err != nil {
 		return "", fmt.Errorf("failed to get git root: %w", err)
 	}
 
-	// Replace slashes with dashes to avoid creating nested directories
-	sanitizedBranchName := strings.ReplaceAll(branchName, "/", "-")
+	sanitizedBranchName := sanitizeBranchNameForPath(branchName)
 
 	return filepath.Join(filepath.Dir(gitRoot), fmt.Sprintf("%s-%s", repoName, sanitizedBranchName)), nil
 }
