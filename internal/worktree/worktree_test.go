@@ -51,6 +51,144 @@ func TestGeneratePath(t *testing.T) {
 	}
 }
 
+func TestSanitizeBranchNameForPath(t *testing.T) {
+	tests := []struct {
+		name       string
+		branchName string
+		want       string
+	}{
+		{
+			name:       "simple branch name",
+			branchName: "feature",
+			want:       "feature",
+		},
+		{
+			name:       "branch name with slash",
+			branchName: "feat/authentication",
+			want:       "feat-authentication",
+		},
+		{
+			name:       "branch name with multiple slashes",
+			branchName: "bugfix/issue-123/fix",
+			want:       "bugfix-issue-123-fix",
+		},
+		{
+			name:       "branch name with consecutive dots",
+			branchName: "feature..test",
+			want:       "feature-test",
+		},
+		{
+			name:       "branch name with multiple consecutive dots",
+			branchName: "feature...test",
+			want:       "feature-test",
+		},
+		{
+			name:       "branch name starting with dot",
+			branchName: ".hidden-feature",
+			want:       "hidden-feature",
+		},
+		{
+			name:       "branch name with leading dots",
+			branchName: "...feature",
+			want:       "feature",
+		},
+		{
+			name:       "branch name with slash and dots",
+			branchName: "feat/test..version",
+			want:       "feat-test-version",
+		},
+		{
+			name:       "branch name with single dot (allowed)",
+			branchName: "feature.test",
+			want:       "feature.test",
+		},
+		{
+			name:       "empty branch name",
+			branchName: "",
+			want:       "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := sanitizeBranchNameForPath(tt.branchName)
+			if got != tt.want {
+				t.Errorf("sanitizeBranchNameForPath(%q) = %q, want %q", tt.branchName, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestGeneratePathForBranch(t *testing.T) {
+	// Skip if not in a git repository
+	if _, err := os.Stat(".git"); os.IsNotExist(err) {
+		t.Skip("Not in a git repository")
+	}
+
+	tests := []struct {
+		name       string
+		repoName   string
+		branchName string
+		wantErr    bool
+	}{
+		{
+			name:       "simple branch name",
+			repoName:   "test-repo",
+			branchName: "feature",
+			wantErr:    false,
+		},
+		{
+			name:       "branch name with slash",
+			repoName:   "test-repo",
+			branchName: "feat/authentication",
+			wantErr:    false,
+		},
+		{
+			name:       "branch name with multiple slashes",
+			repoName:   "test-repo",
+			branchName: "bugfix/issue-123/fix",
+			wantErr:    false,
+		},
+		{
+			name:       "branch name with consecutive dots",
+			repoName:   "test-repo",
+			branchName: "feature..test",
+			wantErr:    false,
+		},
+		{
+			name:       "branch name starting with dot",
+			repoName:   "test-repo",
+			branchName: ".hidden-feature",
+			wantErr:    false,
+		},
+		{
+			name:       "empty repo name",
+			repoName:   "",
+			branchName: "feature",
+			wantErr:    false,
+		},
+		{
+			name:       "empty branch name",
+			repoName:   "test-repo",
+			branchName: "",
+			wantErr:    false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			path, err := GeneratePathForBranch(tt.repoName, tt.branchName)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("GeneratePathForBranch(%s, %s) error = %v, wantErr %v", tt.repoName, tt.branchName, err, tt.wantErr)
+				return
+			}
+			if !tt.wantErr && path == "" {
+				t.Errorf("GeneratePathForBranch(%s, %s) returned empty path", tt.repoName, tt.branchName)
+			}
+		})
+	}
+}
+
 func TestGetPRTitle(t *testing.T) {
 	tests := []struct {
 		name         string
