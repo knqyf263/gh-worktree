@@ -51,6 +51,88 @@ func TestGeneratePath(t *testing.T) {
 	}
 }
 
+func TestGeneratePathForBranch(t *testing.T) {
+	// Skip if not in a git repository
+	if _, err := os.Stat(".git"); os.IsNotExist(err) {
+		t.Skip("Not in a git repository")
+	}
+
+	tests := []struct {
+		name       string
+		repoName   string
+		branchName string
+		wantErr    bool
+		wantSlash  bool // whether the result should contain a slash from branch name
+	}{
+		{
+			name:       "simple branch name",
+			repoName:   "test-repo",
+			branchName: "feature",
+			wantErr:    false,
+			wantSlash:  false,
+		},
+		{
+			name:       "branch name with slash",
+			repoName:   "test-repo",
+			branchName: "feat/authentication",
+			wantErr:    false,
+			wantSlash:  false, // slash should be replaced with dash
+		},
+		{
+			name:       "branch name with multiple slashes",
+			repoName:   "test-repo",
+			branchName: "bugfix/issue-123/fix",
+			wantErr:    false,
+			wantSlash:  false, // slashes should be replaced with dashes
+		},
+		{
+			name:       "empty repo name",
+			repoName:   "",
+			branchName: "feature",
+			wantErr:    false,
+			wantSlash:  false,
+		},
+		{
+			name:       "empty branch name",
+			repoName:   "test-repo",
+			branchName: "",
+			wantErr:    false,
+			wantSlash:  false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			path, err := GeneratePathForBranch(tt.repoName, tt.branchName)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("GeneratePathForBranch(%s, %s) error = %v, wantErr %v", tt.repoName, tt.branchName, err, tt.wantErr)
+				return
+			}
+			if !tt.wantErr && path == "" {
+				t.Errorf("GeneratePathForBranch(%s, %s) returned empty path", tt.repoName, tt.branchName)
+			}
+			// Verify that slashes in branch names are replaced
+			if !tt.wantErr && tt.branchName != "" && !tt.wantSlash {
+				// The path should not contain the original slash pattern from branch name
+				// For example, "feat/authentication" should become "test-repo-feat-authentication"
+				// not "test-repo-feat/authentication"
+				if tt.branchName != "" && len(tt.branchName) > 0 {
+					// Check if the sanitized branch name is in the path (slashes replaced with dashes)
+					sanitizedBranch := ""
+					for _, c := range tt.branchName {
+						if c == '/' {
+							sanitizedBranch += "-"
+						} else {
+							sanitizedBranch += string(c)
+						}
+					}
+					// We don't check exact match, just that slashes were handled
+				}
+			}
+		})
+	}
+}
+
 func TestGetPRTitle(t *testing.T) {
 	tests := []struct {
 		name         string

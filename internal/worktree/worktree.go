@@ -281,13 +281,17 @@ func GeneratePath(repoName string, prNumber int) (string, error) {
 
 // GeneratePathForBranch generates the path for a branch worktree.
 // Format: ../repo-name-{branch-name}
+// Slashes in branch names are replaced with dashes to avoid creating nested directories.
 func GeneratePathForBranch(repoName string, branchName string) (string, error) {
 	gitRoot, err := git.GetRoot()
 	if err != nil {
 		return "", fmt.Errorf("failed to get git root: %w", err)
 	}
 
-	return filepath.Join(filepath.Dir(gitRoot), fmt.Sprintf("%s-%s", repoName, branchName)), nil
+	// Replace slashes with dashes to avoid creating nested directories
+	sanitizedBranchName := strings.ReplaceAll(branchName, "/", "-")
+
+	return filepath.Join(filepath.Dir(gitRoot), fmt.Sprintf("%s-%s", repoName, sanitizedBranchName)), nil
 }
 
 // DetectWorktreeType detects the type of worktree based on its path.
