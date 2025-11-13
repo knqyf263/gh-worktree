@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/cli/go-gh/v2/pkg/api"
 	"github.com/cli/go-gh/v2/pkg/prompter"
@@ -280,16 +281,15 @@ func checkoutRunInteractive(opts *worktree.CheckoutOptions) error {
 		return fmt.Errorf("failed to get PRs: %w", err)
 	}
 
-	if len(prs) == 0 {
-		fmt.Println("No open pull requests found.")
-		return nil
-	}
-
 	// Create candidates list
 	candidates := []string{}
 	for _, pr := range prs {
 		candidates = append(candidates, github.FormatPRCandidate(&pr))
 	}
+
+	// Add "Create a new branch" option at the end
+	createNewBranchOption := "Create a new branch\t(local development)"
+	candidates = append(candidates, createNewBranchOption)
 
 	// Use gh CLI's built-in selection
 	selection, err := promptSelect("Select a pull request to check out", candidates)
@@ -307,6 +307,31 @@ func checkoutRunInteractive(opts *worktree.CheckoutOptions) error {
 		}
 		// In shell mode, output nothing when cancelled so cd doesn't change directory
 		return nil
+	}
+
+	// Check if "Create a new branch" was selected
+	if selection == len(candidates)-1 {
+		// Prompt for branch name
+		p := prompter.New(os.Stdin, os.Stderr, os.Stderr)
+		branchName, err := p.Input("Enter branch name:", "")
+		if err != nil {
+			if opts.ShellMode {
+				return nil
+			}
+			return err
+		}
+
+		// Trim whitespace
+		branchName = strings.TrimSpace(branchName)
+		if branchName == "" {
+			if !opts.ShellMode {
+				fmt.Println("Cancelled.")
+			}
+			return nil
+		}
+
+		// Create branch worktree
+		return checkoutBranchWorktree(branchName, opts)
 	}
 
 	selectedPR := prs[selection]
