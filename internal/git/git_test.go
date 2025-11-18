@@ -171,3 +171,29 @@ func TestExecuteCommands(t *testing.T) {
 		})
 	}
 }
+
+func TestGetMainWorktree(t *testing.T) {
+	// Skip if not in a git repository
+	if _, err := os.Stat(".git"); os.IsNotExist(err) {
+		t.Skip("Not in a git repository")
+	}
+
+	mainWorktree, err := GetMainWorktree()
+	if err != nil {
+		t.Fatalf("GetMainWorktree() error = %v", err)
+	}
+
+	if mainWorktree == "" {
+		t.Error("GetMainWorktree() returned empty path")
+	}
+
+	// Verify the returned path exists and is a directory
+	info, err := os.Stat(mainWorktree)
+	if err != nil {
+		t.Errorf("GetMainWorktree() returned path that doesn't exist: %v", err)
+	}
+
+	if !info.IsDir() {
+		t.Error("GetMainWorktree() returned path is not a directory")
+	}
+}

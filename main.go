@@ -11,6 +11,7 @@ import (
 	"github.com/cli/go-gh/v2/pkg/repository"
 	"github.com/knqyf263/gh-worktree/internal/git"
 	"github.com/knqyf263/gh-worktree/internal/github"
+	"github.com/knqyf263/gh-worktree/internal/setup"
 	"github.com/knqyf263/gh-worktree/internal/validate"
 	"github.com/knqyf263/gh-worktree/internal/worktree"
 	"github.com/spf13/cobra"
@@ -82,6 +83,7 @@ func main() {
 	checkoutCmd.Flags().StringVarP(&opts.BranchName, "branch", "b", "", "Local branch name to use (default [the name of the head branch])")
 	checkoutCmd.Flags().BoolP("shell", "s", false, "Output path only for use in shell functions")
 	checkoutCmd.Flags().StringP("create", "c", "", "Create a new branch worktree for local development")
+	checkoutCmd.Flags().BoolVarP(&opts.NoSetup, "no-setup", "", false, "Skip post-creation setup commands")
 
 	var removeOpts struct {
 		Force bool
@@ -478,6 +480,18 @@ func checkoutBranchWorktree(branchName string, opts *worktree.CheckoutOptions) e
 	// Set worktree type metadata
 	if err := worktree.SetWorktreeType(branchName, "branch"); err != nil {
 		return fmt.Errorf("failed to set worktree type: %w", err)
+	}
+
+	// Run post-creation setup if not disabled
+	if !opts.NoSetup {
+		mainWorktree, err := git.GetMainWorktree()
+		if err != nil {
+			return fmt.Errorf("failed to get main worktree: %w", err)
+		}
+
+		if err := setup.RunSetup(worktreePath, mainWorktree); err != nil {
+			return fmt.Errorf("failed to run setup: %w", err)
+		}
 	}
 
 	// Output based on mode

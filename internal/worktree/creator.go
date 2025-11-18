@@ -8,6 +8,7 @@ import (
 	"github.com/cli/go-gh/v2/pkg/repository"
 	"github.com/knqyf263/gh-worktree/internal/git"
 	"github.com/knqyf263/gh-worktree/internal/github"
+	"github.com/knqyf263/gh-worktree/internal/setup"
 	"github.com/knqyf263/gh-worktree/internal/validate"
 )
 
@@ -18,6 +19,7 @@ type CheckoutOptions struct {
 	Detach            bool
 	BranchName        string
 	ShellMode         bool
+	NoSetup           bool
 }
 
 // Creator handles worktree creation logic
@@ -89,6 +91,18 @@ func (c *Creator) Create(worktreePath string, pr *github.PullRequest, opts *Chec
 	err = c.storePRMetadata(worktreePath, pr)
 	if err != nil {
 		return fmt.Errorf("failed to store PR metadata: %w", err)
+	}
+
+	// Run post-creation setup if not disabled
+	if !opts.NoSetup {
+		mainWorktree, err := git.GetMainWorktree()
+		if err != nil {
+			return fmt.Errorf("failed to get main worktree: %w", err)
+		}
+
+		if err := setup.RunSetup(worktreePath, mainWorktree); err != nil {
+			return fmt.Errorf("failed to run setup: %w", err)
+		}
 	}
 
 	return nil

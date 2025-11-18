@@ -69,6 +69,25 @@ func GetRoot() (string, error) {
 	return filepath.Dir(absGitDir), nil
 }
 
+// GetMainWorktree returns the path to the main worktree
+func GetMainWorktree() (string, error) {
+	cmd := exec.Command("git", "worktree", "list", "--porcelain")
+	output, err := cmd.Output()
+	if err != nil {
+		return "", fmt.Errorf("failed to list worktrees: %w", err)
+	}
+
+	lines := strings.Split(strings.TrimSpace(string(output)), "\n")
+	for _, line := range lines {
+		if strings.HasPrefix(line, "worktree ") {
+			// The first worktree entry is always the main worktree
+			return strings.TrimPrefix(line, "worktree "), nil
+		}
+	}
+
+	return "", fmt.Errorf("no worktree found")
+}
+
 // BranchExists checks if a local branch exists
 func BranchExists(branchName string) bool {
 	cmd := exec.Command("git", "show-ref", "--verify", "--quiet", fmt.Sprintf("refs/heads/%s", branchName))
