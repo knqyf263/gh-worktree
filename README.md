@@ -15,6 +15,7 @@ Instead of checking out pull requests in your current directory, this extension 
 - 🗑️ **Clean removal** - Remove worktrees and associated branches in one command
 - 📋 **List all worktrees** - See all your PR and branch worktrees at a glance
 - 🎯 **Interactive selection** - Use arrow keys and filtering to select from all worktrees
+- ⚙️ **Post-creation setup** - Automatically copy files and run commands in new worktrees
 
 ## Installation
 
@@ -281,6 +282,74 @@ The extension will:
 - Set up appropriate remotes
 - Configure push/pull settings
 - Handle `maintainer_can_modify` permissions
+
+## Post-Creation Setup
+
+Automatically run commands when creating new worktrees, such as copying configuration files or installing dependencies.
+
+### Configuration
+
+Create a `.gh-worktree.yml` file in your repository root:
+
+```yaml
+setup:
+  run:
+    - cp -r "$GH_WORKTREE_MAIN_DIR/.claude" .
+    - cp "$GH_WORKTREE_MAIN_DIR/.env.local" . || true
+    - pnpm install
+```
+
+### How It Works
+
+- Commands run automatically after creating any worktree (PR or branch)
+- Commands execute in the new worktree directory
+- `GH_WORKTREE_MAIN_DIR` environment variable points to the main worktree
+- Setup continues even if commands fail (shows warnings)
+- Works correctly when creating worktrees from other worktrees
+
+### Skipping Setup
+
+Skip post-creation setup with the `--no-setup` flag:
+
+```bash
+gh worktree pr checkout 1234 --no-setup
+gh worktree pr checkout --create feature-auth --no-setup
+```
+
+### Common Use Cases
+
+**Copy configuration files:**
+```yaml
+setup:
+  run:
+    - cp "$GH_WORKTREE_MAIN_DIR/.env.local" .
+    - cp -r "$GH_WORKTREE_MAIN_DIR/.vscode" .
+```
+
+**Install dependencies:**
+```yaml
+setup:
+  run:
+    - pnpm install
+    - npm run build
+```
+
+**Initialize development environment:**
+```yaml
+setup:
+  run:
+    - cp "$GH_WORKTREE_MAIN_DIR/.env.example" .env
+    - pnpm install
+    - pnpm run db:migrate
+```
+
+**Claude Code setup:**
+```yaml
+setup:
+  run:
+    - cp -r "$GH_WORKTREE_MAIN_DIR/.claude" .
+    - echo "Worktree ready for Claude Code!"
+```
 
 ## Requirements
 
