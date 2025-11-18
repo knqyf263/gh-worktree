@@ -18,31 +18,31 @@ func RunSetup(newWorktreePath, mainWorktreePath string) error {
 		return nil
 	}
 
-	fmt.Println("→ Running post-creation setup...")
+	fmt.Fprintln(os.Stderr, "→ Running post-creation setup...")
 
 	var warnings []string
 
 	for _, cmdStr := range config.Setup.Run {
-		fmt.Printf("  ✓ %s\n", cmdStr)
+		fmt.Fprintf(os.Stderr, "  ✓ %s\n", cmdStr)
 
 		// Execute command in the new worktree directory with GH_WORKTREE_MAIN_DIR env var
 		cmd := exec.Command("sh", "-c", cmdStr)
 		cmd.Dir = newWorktreePath
 		cmd.Env = append(os.Environ(), fmt.Sprintf("GH_WORKTREE_MAIN_DIR=%s", mainWorktreePath))
-		cmd.Stdout = os.Stdout
+		cmd.Stdout = os.Stderr
 		cmd.Stderr = os.Stderr
 
 		if err := cmd.Run(); err != nil {
 			warning := fmt.Sprintf("Command failed (exit %d): %s", cmd.ProcessState.ExitCode(), cmdStr)
 			warnings = append(warnings, warning)
-			fmt.Printf("  ⚠ %s\n", warning)
+			fmt.Fprintf(os.Stderr, "  ⚠ %s\n", warning)
 		}
 	}
 
 	if len(warnings) > 0 {
-		fmt.Println("  ⚠ Setup completed with warnings")
+		fmt.Fprintln(os.Stderr, "  ⚠ Setup completed with warnings")
 	} else {
-		fmt.Println("  ✓ Setup completed")
+		fmt.Fprintln(os.Stderr, "  ✓ Setup completed")
 	}
 
 	return nil
@@ -59,5 +59,5 @@ func ShouldRunSetup(mainWorktreePath string) bool {
 
 // PrintSkippedMessage prints a message when setup is skipped
 func PrintSkippedMessage() {
-	fmt.Println("  (setup skipped)")
+	fmt.Fprintln(os.Stderr, "  (setup skipped)")
 }
